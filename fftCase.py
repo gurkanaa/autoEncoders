@@ -1,14 +1,12 @@
+#Preprocessing operation
 #takes fft of case western data
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 import os
 import scipy.io
-#read data
-#macbook
-#spectrum_path="/Users/gurkanAydemir/Documents/akademik/PhD/python/autoencoders/NormalBaseline"
-#labPC
-#spectrum_path='/home/gurkan/Desktop/casedata/data/inner/'
+#Data path
+#NormalBaseline: for healthy data
 path="/home/gurkan/Desktop/mlann/CWRU/NormalBaseline/"
 #parameters
 fft_length=2048
@@ -18,10 +16,12 @@ for folder_id in folders:
     files=os.listdir(path+folder_id)
     for file_id in files:
         if file_id.endswith('.mat'):
+            #read matfile
             mat_obj=scipy.io.loadmat(path+folder_id+'/'+file_id)
             for key in mat_obj.keys():
                 if 'DE_time' in key:
                     klm=np.asarray(mat_obj[key])
+            #computing one sided spectrum
             for i in range(int(np.floor(len(klm)/fft_length))):
                 try:
                     data
@@ -39,6 +39,7 @@ for folder_id in folders:
                     P1[1:-1]=2*P1[1:-1]
                     data_fft=np.concatenate((data_fft,P1),axis=1)
                     data=np.concatenate((data,xy),axis=1)
+            #save the fft to the same file. 2d array : #of frames*length_of_spectrum
             np.save(path+folder_id+'/'+file_id+'_fft',data_fft)
             del data
             del data_fft
