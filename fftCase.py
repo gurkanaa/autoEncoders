@@ -9,15 +9,16 @@ import scipy.io
 #spectrum_path="/Users/gurkanAydemir/Documents/akademik/PhD/python/autoencoders/NormalBaseline"
 #labPC
 #spectrum_path='/home/gurkan/Desktop/casedata/data/inner/'
-spectrum_path="/home/gurkan/Desktop/mlann/CWRU/NormalBaseline/"
+path="/home/gurkan/Desktop/mlann/CWRU/NormalBaseline/"
 #parameters
 fft_length=2048
 
-folders=os.listdir(spectrum_path)
+
+folders=os.listdir(path)
 for folder_id in folders:
-    files=os.listdir(spectrum_path+folder_id)
+    files=os.listdir(path+folder_id)
     for file_id in files:
-        mat_obj=scipy.io.loadmat(spectrum_path+folder_id+'/'+file_id)
+        mat_obj=scipy.io.loadmat(path+folder_id+'/'+file_id)
         for key in mat_obj.keys():
             if 'DE_time' in key:
                 klm=np.asarray(mat_obj[key])
@@ -38,6 +39,6 @@ for folder_id in folders:
                 P1[1:-1]=2*P1[1:-1]
                 data_fft=np.concatenate((data_fft,P1),axis=1)
                 data=np.concatenate((data,xy),axis=1)
-        np.save(spectrum_path+folder_id+'/'+file_id+'_fft',data_fft)
+        np.save(path+folder_id+'/'+file_id+'_fft',data_fft)
         del data
         del data_fft
