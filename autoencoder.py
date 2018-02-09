@@ -123,7 +123,7 @@ plt.show()
 
 
 
-
+asdas
 
 
 '''#constructing autoencoder 2nd layer

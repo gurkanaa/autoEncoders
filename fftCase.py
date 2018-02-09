@@ -39,3 +39,6 @@ for file_id in files:
     print(np.size(data,axis=1))
 
 np.save(spectrum_path+'fft_all_normal',data_fft)
+
+asdas
+asdsa
