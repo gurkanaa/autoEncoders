@@ -1,5 +1,6 @@
 #Preprocessing operation
 #takes fft of case western data
+#but use overlapping long frames for fft
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,9 +10,11 @@ import scipy.io
 #NormalBaseline: for healthy data
 #path="/home/gurkan/Desktop/mlann/CWRU/NormalBaseline/"
 #48DriveEndFault
-path="/home/gurkan/Desktop/mlann/CWRU/48DriveEndFault/"
+path="/home/gurkan/Desktop/mlann/CWRU/NormalBaseline/"
 #parameters
-fft_length=2048
+fft_length=32768
+sliding_distance=1000
+
 
 folders=os.listdir(path)
 for folder_id in folders:
@@ -24,11 +27,11 @@ for folder_id in folders:
                 if 'DE_time' in key:
                     klm=np.asarray(mat_obj[key])
             #computing one sided spectrum
-            for i in range(int(np.floor(len(klm)/fft_length))):
+            for i in range(int(np.floor(len(klm)-fft_length/sliding_distance))):
                 try:
                     data
                 except NameError:
-                    xy=np.asarray(klm[i*fft_length:(i+1)*fft_length])
+                    xy=np.asarray(klm[i*sliding_distance:i*sliding_distance+fft_length])
                     data=xy
                     Y=np.absolute(np.fft.fft(xy,axis=0))
                     P1=Y[0:int(fft_length/2)+1]

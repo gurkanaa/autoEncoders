@@ -4,8 +4,11 @@ import matplotlib.pyplot as plt
 import os
 import scipy.io
 #read data
-spectrum_path="/home/gurkan/Desktop/casedata/data/normal/"
-data=np.load(spectrum_path+'fft_all_normal.npy')
+spectrum_path="/home/gurkan/Desktop/mlann/CWRU/NormalBaseline/1772/"
+faulty_spectrum_path="/home/gurkan/Desktop/mlann/CWRU/48DriveEndFault/1772/"
+faulty_data=np.load(faulty_spectrum_path+'0.021-InnerRace_fft.npy')
+faulty_data=np.transpose(faulty_data)
+data=np.load(spectrum_path+'Normal_fft.npy')
 data=data
 print(np.size(data,axis=0))
 print(np.size(data,axis=1))
@@ -200,23 +203,38 @@ for i in range(1,num_of_steps+1):
 #testing
 
 batch_x=test_set[np.random.randint(test_set.shape[0],size=1),:]
-print(batch_x.shape[0])
-print(batch_x.shape[1])
 error=abs(batch_x-decoder_op)
 h,g=sess.run([decoder_op,error],feed_dict={X:batch_x})
+#j=sess.run([encoder_op],feed_dict={X:batch_x})
+batch_x=faulty_data[np.random.randint(faulty_data.shape[0],size=1),:]
+error=abs(batch_x-decoder_op)
+l,m=sess.run([decoder_op,error],feed_dict={X:batch_x})
+#n=sess.run([encoder_op],feed_dict={X:batch_x})
 
-'''print(np.size(g,axis=1))
+print(np.size(g,axis=1))
 print(np.size(batch_x,axis=1))
 print(np.size(g,axis=0))
 print(np.size(batch_x,axis=0))
 print("Original Spectrum")
 plt.figure(1)
 plt.plot(np.transpose(batch_x))
-print("Reconstructed Spectrum")'''
+print("Reconstructed Spectrum")
 plt.figure(1)
 plt.plot(np.transpose(g))
 plt.figure(2)
-plt.plot(np.transpose(batch_x))
-plt.figure(3)
 plt.plot(np.transpose(h))
+plt.figure(3)
+plt.plot(np.transpose(h+g))
+plt.figure(4)
+plt.plot(np.transpose(l))
+plt.figure(5)
+plt.plot(np.transpose(m))
+plt.figure(6)
+plt.plot(np.transpose(m+l))
 plt.show()
+'''
+plt.figure(1)
+plt.plot(np.transpose(j))
+plt.figure(2)
+plt.plot(np.transpose(n))
+plt.show()'''
