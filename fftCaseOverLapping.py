@@ -10,7 +10,7 @@ import scipy.io
 #NormalBaseline: for healthy data
 #path="/home/gurkan/Desktop/mlann/CWRU/NormalBaseline/"
 #48DriveEndFault
-path="/home/gurkan/Desktop/mlann/CWRU/NormalBaseline/"
+path="/home/gurkan/Desktop/mlann/CWRU/48DriveEndFault/"
 #parameters
 fft_length=32768
 sliding_distance=1000

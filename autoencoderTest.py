@@ -38,7 +38,7 @@ num_of_layers=3
 num_hidden_1=256
 num_hidden_2=84
 num_hidden_3=42
-num_input=1025#input is fft soectrum of signals length 1024
+num_input=16385#input is fft soectrum of signals length 1024
 
 #input
 X=tf.placeholder(tf.float32,[None,num_input])
