@@ -1,3 +1,4 @@
+#deneme
 from keras.models import Model#type of the ANN model
 from keras.layers import Dense,Input#fully connected layer
 from keras import losses
