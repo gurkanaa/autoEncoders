@@ -8,17 +8,23 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import os
 import scipy.io
+from collections import namedtuple
+import json
 
 #Data path
 #NormalBaseline: for healthy data
-path="/Users/gurkanAydemir/Documents/akademik/PhD/python/virtualenv/CWRU/NormalBaseline/"
+baseline_path="/Users/gurkanAydemir/Documents/akademik/PhD/python/virtualenv/CWRU/NormalBaseline/"
 #48DriveEndFault
-#path="/Users/gurkanAydemir/Documents/akademik/PhD/python/virtualenv/CWRU/48DriveEndFault/"
+path="/Users/gurkanAydemir/Documents/akademik/PhD/python/virtualenv/CWRU/48DriveEndFault/"
+#save path
+save_path="/Users/gurkanAydemir/Documents/akademik/PhD/python/virtualenv/autoEncoders/"
 #parameters
 fft_length=32768
 sliding_distance=1000
 
 
+data_cwru=[]
+data_tuple=('Instance_of_data',['Health_status','data','label'])
 folders=os.listdir(path)
 
 for folder_id in folders:
@@ -26,6 +32,15 @@ for folder_id in folders:
         files=os.listdir(path+folder_id)
         for file_id in files:
             if file_id.endswith('.mat'):
+                if('Inner' in file_id):
+                    health_status='Inner'
+                    label=1
+                elif('Outer'in file_id):
+                    health_status='Outer'
+                    label=2
+                elif('Ball' in file_id):
+                    health_status='Outer'
+                    label=2
                 #read matfile
                 mat_obj=scipy.io.loadmat(path+folder_id+'/'+file_id)
                 for key in mat_obj.keys():
@@ -49,12 +64,16 @@ for folder_id in folders:
                             data_fft=np.concatenate((data_fft,P1),axis=1)
                             data=np.concatenate((data,xy),axis=1)
                 #save the fft to the same file. 2d array : #of frames*length_of_spectrum
-                np.save(path+folder_id+'/'+file_id[:-4]+'_fft',data_fft)
+                #np.save(path+folder_id+'/'+file_id[:-4]+'_fft',data_fft)
                 print(np.size(data_fft,axis=0))
                 print(np.size(data_fft,axis=1))
+                xyz=data_tuple(health_status,data_fft,label)
+                data_cwru=[data_cwru,xyz]
                 del data
                 del data_fft
+                print(data_cwru)
 
-plt.figure()
-plt.plot(P1)
-plt.show()
+json = json.dumps(data_cwru)
+f = open(save_path+'data_cwru.json',"w")
+f.write(json)
+f.close()

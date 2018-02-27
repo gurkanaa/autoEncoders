@@ -6,13 +6,15 @@ from keras import optimizers
 from keras import backend as K
 import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import os
 import scipy.io
 from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from  sklearn.svm import LinearSVC
 #read data
-spectrum_path="/home/gurkan/Desktop/mlann/CWRU/NormalBaseline/1772/"
-faulty_spectrum_path="/home/gurkan/Desktop/mlann/CWRU/48DriveEndFault/1772/"
+spectrum_path="/Users/gurkanAydemir/Documents/akademik/PhD/python/virtualenv/CWRU/NormalBaseline/1772/"
+faulty_spectrum_path="/Users/gurkanAydemir/Documents/akademik/PhD/python/virtualenv/CWRU/48DriveEndFault/1772/"
 files=os.listdir(faulty_spectrum_path)
 for file_id in files:
     if('fft'in file_id):
@@ -22,11 +24,8 @@ for file_id in files:
             faulty_data=np.load(faulty_spectrum_path+file_id)
 
 faulty_data=np.transpose(faulty_data)
-print(np.size(faulty_data,axis=0),np.size(faulty_data,axis=1))
 data=np.load(spectrum_path+'Normal_fft.npy')
 data=data
-print(np.size(data,axis=0))
-print(np.size(data,axis=1))
 
 data_tr=np.transpose(data)
 training_idx=np.random.rand(np.size(data_tr,0))<0.8
@@ -45,7 +44,7 @@ predictions=Dense(input_size)(layer_1)
 stacked_ae1=Model(inputs=inputs,outputs=predictions)
 stacked_ae1.compile(optimizer=optimizers.SGD(lr=0.1, momentum=0.9),
               loss='mean_squared_error')
-stacked_ae1.fit(training_set, training_set,epochs=25)
+stacked_ae1.fit(training_set, training_set,epochs=15)
 
 get_3rd_layer_output = K.function([stacked_ae1.layers[0].input],
                                   [stacked_ae1.layers[1].output])
@@ -56,7 +55,7 @@ predictions2=Dense(h_layer1,activation='sigmoid')(layer_2)
 stacked_ae2=Model(inputs=inputs2,outputs=predictions2)
 stacked_ae2.compile(optimizer=optimizers.SGD(lr=0.1,momentum=0.9),
                loss='mean_squared_error')
-stacked_ae2.fit(layer_1_predictions,layer_1_predictions,epochs=25)
+stacked_ae2.fit(layer_1_predictions,layer_1_predictions,epochs=15)
 
 w1=stacked_ae1.get_weights()
 w2=stacked_ae2.get_weights()
@@ -72,29 +71,36 @@ ae.set_weights(weights)
 
 ae.compile(optimizer=optimizers.SGD(lr=0.01, momentum=0.9),
               loss='mean_squared_error')
-ae.fit(training_set, training_set,epochs=15)
+ae.fit(training_set, training_set,epochs=5)
 get_feature = K.function([ae.layers[0].input],
                                   [ae.layers[2].output])
 
 healthy_data_feature = get_feature([data_tr, 0])[0]
 faulty_data_feature=get_feature([faulty_data,0])[0]
-training_set_size=250
-training_set_hid=np.random.randint(healthy_data_feature.shape[0],size=training_set_size)
-training_set_fid=np.random.randint(faulty_data_feature.shape[0],size=training_set_size)
-classification_training_set=np.concatenate((healthy_data_feature[training_set_hid,:],faulty_data_feature[training_set_fid,:]),axis=0)
-classification_training_set_classes=np.concatenate((np.zeros((training_set_size,1)),np.ones((training_set_size,1))))
+training_set_hid=np.random.rand(healthy_data_feature.shape[0])<0.5
+training_set_fid=np.random.rand(faulty_data_feature.shape[0])<0.05
+classification_training_set=np.concatenate((healthy_data_feature[training_set_hid,:],
+                                            faulty_data_feature[training_set_fid,:]),axis=0)
+classification_training_set_classes=np.concatenate((np.zeros((sum(training_set_hid),1)),np.ones((sum(training_set_fid),1))))
+classification_test_set=np.concatenate((healthy_data_feature[~training_set_hid,:],faulty_data_feature[~training_set_fid,:]),
+                                                                axis=0)
+classification_test_set_classes=np.concatenate((np.zeros((data_tr.shape[0]-sum(training_set_hid),1)),
+                                        np.ones((faulty_data.shape[0]-sum(training_set_fid),1))),axis=0)
 
-classification_test_set=np.concatenate((healthy_data_feature[~training_set_hid,:],faulty_data_feature[~training_set_fid,:]),axis=0)
-classification_test_set_classes=np.concatenate((np.zeros((data_tr.shape[0]-training_set_size,1)),np.ones((faulty_data.shape[0]-training_set_size,1))))
-
-
-
-print(np.size(classification_test_set,axis=0),np.size(classification_test_set,axis=1),np.size(classification_test_set_classes,axis=0),np.size(classification_test_set_classes,axis=1))
-
-clf=SVC()
-clf.fit(classification_training_set,classification_training_set_classes)
-
-
+print(sum(training_set_hid),sum(training_set_fid))
+clf=SVC(class_weight='balanced')
+clf.fit(classification_training_set,classification_training_set_classes.ravel())
+test_result=clf.predict(classification_test_set)
+g_tru=classification_test_set_classes.ravel()
+print(sum(abs(test_result-g_tru)))
+clfKnn=KNeighborsClassifier(n_neighbors=5)
+clfKnn.fit(classification_training_set,classification_training_set_classes)
+test_resultKnn=clfKnn.predict(classification_test_set)
+print(sum(abs(test_resultKnn-g_tru)))
+clfLinear=LinearSVC()
+clfLinear.fit(classification_training_set,classification_training_set_classes)
+test_resultlinear=clfLinear.predict(classification_test_set)
+print(sum(abs(test_resultlinear-g_tru)))
 
 
 
