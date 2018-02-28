@@ -12,21 +12,74 @@ import scipy.io
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from  sklearn.svm import LinearSVC
+import json
+
 #read data
-spectrum_path="/Users/gurkanAydemir/Documents/akademik/PhD/python/virtualenv/CWRU/NormalBaseline/1772/"
-faulty_spectrum_path="/Users/gurkanAydemir/Documents/akademik/PhD/python/virtualenv/CWRU/48DriveEndFault/1772/"
-files=os.listdir(faulty_spectrum_path)
-for file_id in files:
-    if('fft'in file_id):
-        if 'faulty_data' in globals():
-            faulty_data=np.concatenate((faulty_data,np.load(faulty_spectrum_path+file_id)),axis=1)
-        else:
-            faulty_data=np.load(faulty_spectrum_path+file_id)
+def load_data(name_of_file):
+    with open(name_of_file) as json_file:
+        data = json.load(json_file)
+    return data
 
-faulty_data=np.transpose(faulty_data)
-data=np.load(spectrum_path+'Normal_fft.npy')
-data=data
+#select training and test data
+def cwru_train_test_sets(data):
+    #takes the data with special format and returns training and test datasets and their labels respectively
+    training_data=[]
+    test_data=[]
+    #Data:
+    #   4 baseline-  Training 3 Test:1
+    normal_index = list(index for (index, d) in enumerate(data) if d["Health_status"] == "Normal")
+    normal_perm=np.random.permutation(normal_index)
+    for i in normal_perm[:3]:
+        training_data.append(data[i])
+    for i in normal_perm[3:]:
+        test_data.append(data[i])
 
+    #   28 Outer Race fault- Training 21 Test:7
+    outer_index = list(index for (index, d) in enumerate(data) if d["Health_status"] == "Outer")
+    outer_perm=np.random.permutation(outer_index)
+    for i in outer_perm[:21]:
+        training_data.append(data[i])
+    for i in outer_perm[21:]:
+        test_data.append(data[i])
+    #   12 Inner Race fault- Training 9 Test:3
+    inner_index = list(index for (index, d) in enumerate(data) if d["Health_status"] == "Inner")
+    inner_perm=np.random.permutation(inner_index)
+    for i in inner_perm[:9]:
+        training_data.append(data[i])
+    for i in inner_perm[9:]:
+        test_data.append(data[i])
+    #   12 Ball fault- Training 9 Test:3
+    ball_index = list(index for (index, d) in enumerate(data) if d["Health_status"] == "Ball")
+    ball_perm=np.random.permutation(ball_index)
+    for i in ball_perm[:9]:
+        training_data.append(data[i])
+    for i in ball_perm[9:]:
+        test_data.append(data[i])
+    tr_data_array=training_data[0]['Data']
+    tr_data_label=np.ones(np.size(training_data[0]['Data'],axis=1))
+    print(len(training_data))
+    for i in range(1,len(training_data)):
+        tr_data_array=np.concatenate((tr_data_array,training_data[i]['Data']),axis=1)
+        tr_data_label=np.concatenate((tr_data_label,np.ones(np.size(training_data[i]['Data'],axis=1))))
+    test_data_array=test_data[0]['Data']
+    test_data_label=np.ones(np.size(test_data[0]['Data'],axis=1))
+    for i in range(1,len(test_data)):
+        test_data_array=np.concatenate((test_data_array,test_data[i]['Data']),axis=1)
+        test_data_label=np.concatenate((test_data_label,np.ones(np.size(test_data[i]['Data'],axis=1))))
+    print('Size of training data:',np.size(tr_data_label))
+    print('Size of test data:',np.size(test_data_label))
+    return tr_data_array,test_data_array,tr_data_label,test_data_label
+
+def create_autoencoder(num_of_layers,input_size,*args):
+    if len(args)>num_of_layers or i in range(len(args)) if not type(args[i])==int:
+        print('Number of layers is smaller than',len(args))
+        raise
+    else:
+        print("dana")
+    return deneme
+
+
+'''
 data_tr=np.transpose(data)
 training_idx=np.random.rand(np.size(data_tr,0))<0.8
 training_set=data_tr[training_idx,:]
@@ -101,7 +154,7 @@ clfLinear=LinearSVC()
 clfLinear.fit(classification_training_set,classification_training_set_classes)
 test_resultlinear=clfLinear.predict(classification_test_set)
 print(sum(abs(test_resultlinear-g_tru)))
-
+'''
 
 
 
