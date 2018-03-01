@@ -1,6 +1,7 @@
-#deneme
+#Modules
 from keras.models import Model#type of the ANN model
 from keras.layers import Dense,Input#fully connected layer
+from keras.models import Sequential
 from keras import losses
 from keras import optimizers
 from keras import backend as K
@@ -14,7 +15,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from  sklearn.svm import LinearSVC
 import json
 
-#read data
+#Load data
 def load_data(name_of_file):
     with open(name_of_file) as json_file:
         data = json.load(json_file)
@@ -70,14 +71,44 @@ def cwru_train_test_sets(data):
     print('Size of test data:',np.size(test_data_label))
     return tr_data_array,test_data_array,tr_data_label,test_data_label
 
-def create_autoencoder(num_of_layers,input_size,*args):
-    if len(args)>num_of_layers or i in range(len(args)) if not type(args[i])==int:
-        print('Number of layers is smaller than',len(args))
-        raise
+def abc(num_of_layers,input_size,*args):
+    for i in range(len(args)):
+        if type(args[i])!=int:
+            raise Exception('Number of neurons in hidden layers must be integer')
+    if len(args)!=num_of_layers and len(args)!=0:
+        raise Exception('Number of layers is ',num_of_layers)
     else:
-        print("dana")
-    return deneme
-
+        if len(args)==num_of_layers:
+            model_param=args
+        else:
+            model_param=np.zeros(num_of_layers)
+            for i in range(num_of_layers):
+                model_param[i]=int(input_size/pow(4,i+1))
+        model=Sequential()
+        model_param=[int(x) for x in model_param]
+        print(model_param)
+        #encoder
+        for i in range(num_of_layers):
+            if i==0:
+                model.add(Dense(model_param[i],activation='sigmoid',input_dim=input_size))
+            else:
+                model.add(Dense(model_param[i],activation='sigmoid'))
+        #decoder
+        for i in range(1,num_of_layers):
+            if i==num_of_layers-1:
+                model.add(Dense(input_size))
+            else:
+                model.add(Dense(model_param[num_of_layers-i-1],activation='sigmoid'))
+        sgd = optimizers.SGD(lr=0.01, decay=1e-6, momentum=0.9)
+        model.compile(loss='mean_squared_error',
+              optimizer='sgd')
+    return model
+#Pretraining of stacked autoencoder
+def pretrain(model,data):
+    weights=model.get_weights()
+    layer_input=data
+    for i in range(len(weights)/2):
+        
 
 '''
 data_tr=np.transpose(data)
