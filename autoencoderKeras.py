@@ -108,7 +108,9 @@ def pretrain(model,data):
     weights=model.get_weights()
     layer_input=data
     for i in range(len(weights)/2):
-        
+        if i==0:
+            inputs=Input(shape=(np.size(weights,axis=0))))
+            layer_1=Dense(np.size(weights,axis=1),activation='sigmoid')
 
 '''
 data_tr=np.transpose(data)
