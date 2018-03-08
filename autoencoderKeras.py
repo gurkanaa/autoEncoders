@@ -22,7 +22,7 @@ def load_data(name_of_file):
     return data
 
 #select training and test data
-def cwru_train_test_sets(data):
+def cwru_tra_test_sets(data):
     #takes the data with special format and returns training and test datasets and their labels respectively
     training_data=[]
     test_data=[]
@@ -57,21 +57,27 @@ def cwru_train_test_sets(data):
     for i in ball_perm[9:]:
         test_data.append(data[i])
     tr_data_array=training_data[0]['Data']
-    tr_data_label=np.ones(np.size(training_data[0]['Data'],axis=1))
+    tr_data_label=training_data[0]['label']*np.ones(np.size(training_data[0]['Data'],axis=1))
     print(len(training_data))
     for i in range(1,len(training_data)):
         tr_data_array=np.concatenate((tr_data_array,training_data[i]['Data']),axis=1)
-        tr_data_label=np.concatenate((tr_data_label,np.ones(np.size(training_data[i]['Data'],axis=1))))
+        tr_data_label=np.concatenate((tr_data_label,training_data[i]['label']*np.ones(np.size(training_data[i]['Data'],axis=1))))
     test_data_array=test_data[0]['Data']
-    test_data_label=np.ones(np.size(test_data[0]['Data'],axis=1))
+    test_data_label=test_data[0]['label']*np.ones(np.size(test_data[0]['Data'],axis=1))
     for i in range(1,len(test_data)):
         test_data_array=np.concatenate((test_data_array,test_data[i]['Data']),axis=1)
-        test_data_label=np.concatenate((test_data_label,np.ones(np.size(test_data[i]['Data'],axis=1))))
+        test_data_label=np.concatenate((test_data_label,test_data[i]['label']*np.ones(np.size(test_data[i]['Data'],axis=1))))
+    tr_data_array=np.asarray(tr_data_array)
+    test_data_array=np.asarray(test_data_array)
+    for i in range(np.size(tr_data_array,axis=1)):
+        tr_data_array[:,i]=tr_data_array[:,i]/np.max(tr_data_array[:,i])
+    for i in range(np.size(test_data_array,axis=1)):
+        test_data_array[:,i]=test_data_array[:,i]/np.max(test_data_array[:,i])
     print('Size of training data:',np.size(tr_data_label))
     print('Size of test data:',np.size(test_data_label))
     return tr_data_array,test_data_array,tr_data_label,test_data_label
 
-def abc(num_of_layers,input_size,*args):
+def create_model(num_of_layers,input_size,*args):
     for i in range(len(args)):
         if type(args[i])!=int:
             raise Exception('Number of neurons in hidden layers must be integer')
@@ -90,116 +96,52 @@ def abc(num_of_layers,input_size,*args):
         #encoder
         for i in range(num_of_layers):
             if i==0:
-                model.add(Dense(model_param[i],activation='sigmoid',input_dim=input_size))
+                model.add(Dense(model_param[i],activation='relu',input_dim=input_size))
             else:
-                model.add(Dense(model_param[i],activation='sigmoid'))
+                model.add(Dense(model_param[i],activation='relu'))
         #decoder
-        for i in range(1,num_of_layers):
+        for i in range(0,num_of_layers):
             if i==num_of_layers-1:
-                model.add(Dense(input_size))
+                model.add(Dense(input_size,activation='sigmoid'))
             else:
-                model.add(Dense(model_param[num_of_layers-i-1],activation='sigmoid'))
-        sgd = optimizers.SGD(lr=0.01, decay=1e-6, momentum=0.9)
-        model.compile(loss='mean_squared_error',
-              optimizer='sgd')
+                model.add(Dense(model_param[num_of_layers-i-2],activation='relu'))
     return model
 #Pretraining of stacked autoencoder
-def pretrain(model,data):
+def pretrain(model,data,learning_rate):
     weights=model.get_weights()
+    weigts_dummy=weights
     layer_input=data
-    for i in range(len(weights)/2):
+    for i in range(int(len(weights)/4)):
         if i==0:
-            inputs=Input(shape=(np.size(weights,axis=0))))
-            layer_1=Dense(np.size(weights,axis=1),activation='sigmoid')
+            inputs=Input(shape=(np.size(weights[2*i],axis=0),))
+            layer_1=Dense(np.size(weights[2*i],axis=1),activation='relu')(inputs)
+            predictions=Dense(np.size(weights[2*i],axis=0),activation='sigmoid')(layer_1)
+        else:
+            inputs=Input(shape=(np.size(weights[2*i],axis=0),))
+            layer_1=Dense(np.size(weights[2*i],axis=1),activation='relu')(inputs)
+            predictions=Dense(np.size(weights[2*i],axis=0),activation='relu')(layer_1)
+        stacked_ae=Model(inputs=inputs,outputs=predictions)
+        stacked_ae.compile(optimizer=optimizers.SGD(lr=learning_rate, momentum=0.9),
+                      loss='mean_squared_error')
+        print(i)
+        stacked_ae.fit(layer_input,layer_input,shuffle=True,epochs=15,batch_size=64)
+        get_h_layer_output = K.function([stacked_ae.layers[0].input],
+                                          [stacked_ae.layers[1].output])
+        layer_1_predictions = get_h_layer_output([layer_input, 0])[0]
+        w=stacked_ae.get_weights()
+        del layer_input,layer_1,inputs,predictions,get_h_layer_output
+        layer_input=layer_1_predictions
+        weigts_dummy[2*i]=w[0]
+        weigts_dummy[2*i+1]=w[1]
+        weigts_dummy[len(weights)-2*i-2]=w[2]
+        weigts_dummy[len(weights)-2*i-1]=w[3]
+        del w
+    model.set_weights(weigts_dummy)
+    return model
 
-'''
-data_tr=np.transpose(data)
-training_idx=np.random.rand(np.size(data_tr,0))<0.8
-training_set=data_tr[training_idx,:]
-test_set=data_tr[~training_idx,:]
-
-#model initialization
-num_of_layers=2
-input_size=16385
-h_layer1=256
-h_layer2=64
-inputs=Input(shape=(input_size,))
-layer_1=Dense(h_layer1,activation='sigmoid')(inputs)
-predictions=Dense(input_size)(layer_1)
-
-stacked_ae1=Model(inputs=inputs,outputs=predictions)
-stacked_ae1.compile(optimizer=optimizers.SGD(lr=0.1, momentum=0.9),
-              loss='mean_squared_error')
-stacked_ae1.fit(training_set, training_set,epochs=15)
-
-get_3rd_layer_output = K.function([stacked_ae1.layers[0].input],
-                                  [stacked_ae1.layers[1].output])
-layer_1_predictions = get_3rd_layer_output([training_set, 0])[0]
-inputs2=Input(shape=(h_layer1,))
-layer_2=Dense(h_layer2,activation='sigmoid')(inputs2)
-predictions2=Dense(h_layer1,activation='sigmoid')(layer_2)
-stacked_ae2=Model(inputs=inputs2,outputs=predictions2)
-stacked_ae2.compile(optimizer=optimizers.SGD(lr=0.1,momentum=0.9),
-               loss='mean_squared_error')
-stacked_ae2.fit(layer_1_predictions,layer_1_predictions,epochs=15)
-
-w1=stacked_ae1.get_weights()
-w2=stacked_ae2.get_weights()
-weights=[w1[0],w1[1],w2[0],w2[1],w2[2],w2[3],w1[2],w1[3]]
-
-inputs=Input(shape=(input_size,))
-layer1=Dense(h_layer1,activation='sigmoid')(inputs)
-layer2=Dense(h_layer2,activation='sigmoid')(layer1)
-layer3=Dense(h_layer1,activation='sigmoid')(layer2)
-predictions=Dense(input_size)(layer3)
-ae=Model(inputs=inputs,outputs=predictions)
-ae.set_weights(weights)
-
-ae.compile(optimizer=optimizers.SGD(lr=0.01, momentum=0.9),
-              loss='mean_squared_error')
-ae.fit(training_set, training_set,epochs=5)
-get_feature = K.function([ae.layers[0].input],
-                                  [ae.layers[2].output])
-
-healthy_data_feature = get_feature([data_tr, 0])[0]
-faulty_data_feature=get_feature([faulty_data,0])[0]
-training_set_hid=np.random.rand(healthy_data_feature.shape[0])<0.5
-training_set_fid=np.random.rand(faulty_data_feature.shape[0])<0.05
-classification_training_set=np.concatenate((healthy_data_feature[training_set_hid,:],
-                                            faulty_data_feature[training_set_fid,:]),axis=0)
-classification_training_set_classes=np.concatenate((np.zeros((sum(training_set_hid),1)),np.ones((sum(training_set_fid),1))))
-classification_test_set=np.concatenate((healthy_data_feature[~training_set_hid,:],faulty_data_feature[~training_set_fid,:]),
-                                                                axis=0)
-classification_test_set_classes=np.concatenate((np.zeros((data_tr.shape[0]-sum(training_set_hid),1)),
-                                        np.ones((faulty_data.shape[0]-sum(training_set_fid),1))),axis=0)
-
-print(sum(training_set_hid),sum(training_set_fid))
-clf=SVC(class_weight='balanced')
-clf.fit(classification_training_set,classification_training_set_classes.ravel())
-test_result=clf.predict(classification_test_set)
-g_tru=classification_test_set_classes.ravel()
-print(sum(abs(test_result-g_tru)))
-clfKnn=KNeighborsClassifier(n_neighbors=5)
-clfKnn.fit(classification_training_set,classification_training_set_classes)
-test_resultKnn=clfKnn.predict(classification_test_set)
-print(sum(abs(test_resultKnn-g_tru)))
-clfLinear=LinearSVC()
-clfLinear.fit(classification_training_set,classification_training_set_classes)
-test_resultlinear=clfLinear.predict(classification_test_set)
-print(sum(abs(test_resultlinear-g_tru)))
-'''
-
-
-
-'''get_3rd_layer_output = K.function([stacked_ae1.layers[0].input],
-                                  [stacked_ae1.layers[1].output])
-layer_1_predictions = get_3rd_layer_output([training_set, 0])[0]
-'''
-'''
-print(np.size(layer_1_predictions,axis=0),np.size(layer_1_predictions,axis=1))
-plt.figure(1)
-plt.plot(layer_1_predictions[1,:])
-plt.figure(2)
-plt.plot(training_set[1,:])
-plt.show()
-'''
+def overall_train(model,data,learning_rate):
+    sgd = optimizers.SGD(lr=learning_rate, momentum=0.9)
+    model.compile(loss='mean_squared_error',
+          optimizer=sgd)
+    model.fit(data,data,shuffle=True,epochs=15,batch_size=64)
+    return model

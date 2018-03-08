@@ -18,10 +18,10 @@ fault_path="/home/gurkan/Desktop/mlann/CWRU/48DriveEndFault/"
 save_path="/home/gurkan/Desktop/mlann/CWRU/"
 #parameters
 fft_length=32768
-sliding_distance=1000
+sliding_distance=8000
 data_cwru=[]
 tuple_id=0
-for fault in range(1):
+for fault in range(2):
     if fault==0:
         path=baseline_path
     else:
@@ -65,7 +65,7 @@ for fault in range(1):
                                 P1[1:-1]=2*P1[1:-1]
                                 data_fft=np.concatenate((data_fft,P1),axis=1)
                                 data=np.concatenate((data,xy),axis=1)
-                    data_dict={'Health_status':health_status,'Data':data_fft.tolist(),'label':label}
+                    data_dict={'Health_status':health_status,'Data':data_fft.tolist(),'label':label,'setting':folder_id,'severity':file_id[0:4]}
                     #save the fft to the same file. 2d array : #of frames*length_of_spectrum
                     #np.save(path+folder_id+'/'+file_id[:-4]+'_fft',data_fft)
                     data_cwru.append(data_dict)
@@ -73,5 +73,5 @@ for fault in range(1):
                     del data_fft
                     print(folder_id+'/'+file_id,data_cwru[tuple_id]['Health_status'],data_cwru[tuple_id]['label'],np.size(data_cwru[tuple_id]['Data'],axis=0),np.size(data_cwru[tuple_id]['Data'],axis=1))
                     tuple_id=tuple_id+1
-with open('normal.txt', 'w') as outfile:
+with open('data_cwru_small.txt', 'w') as outfile:
     json.dump(data_cwru, outfile)
