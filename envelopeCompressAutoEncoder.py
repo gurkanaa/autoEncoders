@@ -18,6 +18,8 @@ from scipy.io import loadmat#necessary for reading mat file
 import numpy as np #for mathematical calculations
 import random
 import scipy.stats as st
+import autoencoderKeras
+import matplotlib.pyplot as plt
 #reading data
 #There are 5 fields: 'env':Envelope spectrum
 #                    'label_ar'   : Fault types
@@ -53,16 +55,18 @@ def feature_extract(data,f):
     inner_f=159.93
     outer_f=105.87
     ball_f=68.72
-    rms=[np.sqrt(np.mean((data[i]))) for i in range(len(data))]  #rms
-    max_=[np.max(data[i]) for i in range(len(data))] #max
-    skew_=[st.skew(data[i]) for i in range(len(data))] #skewness
-    kurtosis_=[st.kurtosis(data[i]) for i in range(len(data))] #kurtosis
+    ball_f2=17.77
+    rms=[np.sqrt(np.mean((data[i,:]*data[i,:]))) for i in range(len(data[:,0]))]  #rms
+    max_=[np.max(data[i,:]) for i in range(len(data[:,0]))] #max
+    skew_=[st.skew(data[i,:]) for i in range(len(data[:,0]))] #skewness
+    kurtosis_=[st.kurtosis(data[i,:]) for i in range(len(data[:,0]))] #kurtosis
     f_inner=np.argmin(abs(f-inner_f))
     f_outer=np.argmin(abs(f-outer_f))
     f_ball=np.argmin(abs(f-ball_f))
-    inner=[np.sum(data[i][f_inner-1:f_inner+1]) for i in range(len(data))]
-    outer=[np.sum(data[i][f_outer-1:f_outer+1]) for i in range(len(data))]
-    ball=[np.sum(data[i][f_ball-1:f_ball+1]) for i in range(len(data))]
+    f2_ball=np.argmin(abs(f-ball_f2))
+    inner=[np.sum(data[i,:][f_inner-2:f_inner+2]) for i in range(len(data[:,0]))]
+    outer=[np.sum(data[i,:][f_outer-2:f_outer+2]) for i in range(len(data[:,0]))]
+    ball=[np.sum(data[i,:][f_ball-2:f_ball+2])+np.sum(data[i][f2_ball-2:f2_ball+2]) for i in range(len(data[:,0]))]
     data_stats={'inner':inner,'outer':outer,'ball':ball,'rms':rms,'max':max_,'skew':skew_,'kurtosis':kurtosis_}
     return data_stats
 #compute the level of rule based values for healthy motor
@@ -76,21 +80,91 @@ def healthy_level(tr_label,data_stats):
     ball_s=.0
     count=.0
     for i in range(len(tr_label)):
-        if tr_label[i]==4:
+        if tr_label[i]==1:
             rms_s+=data_stats['rms'][i]
-            max_s+=data_stats['max'][i]
-            skew_s+=data_stats['skew'][i]
-            kurt_s+=data_stats['kurtosis'][i]
             inner_s+=data_stats['inner'][i]
             outer_s+=data_stats['outer'][i]
             ball_s+=data_stats['ball'][i]
             count+=1
-    healthy_val={'inner':inner_s/count,'outer':outer_s/count,'ball':ball_s/count,'rms':rms_s/count,'max':max_s/count,'skew':skew_s/count,'kurtosis':kurt_s/count}
+    healthy_val={'inner':3*inner_s/count,'outer':3*outer_s/count,'ball':ball_s/count,'rms':1.2*rms_s/count}
     return healthy_val
+#rule based classifier for CWRU data
+def rule_based_classification(data_stats,healthy_val):
+    pred_label=[]
+    for i in range(len(data_stats['rms'])):
+        if data_stats['inner'][i]>healthy_val['inner'] and data_stats['inner'][i]>data_stats['outer'][i]:#inner fault indicator
+            pred_label.append(2)
+        elif data_stats['outer'][i]>healthy_val['outer'] and data_stats['outer'][i]>data_stats['inner'][i]:#outer fault indicator
+            pred_label.append(3)
+        elif data_stats['rms'][i]>healthy_val['rms']:#unclassified fault indicator
+            pred_label.append(4)
+        else:#healthy
+            pred_label.append(1)
+    return pred_label
+#stats for predictions
+def confusion_matrix(true_labels,predicted_labels):
+    conf_mat=np.zeros([4,4])
+    for i in range(len(true_labels)):
+        for j in range(4):
+            for k in range(4):
+                if true_labels[i]==j+1 and predicted_labels[i]==k+1:
+                    conf_mat[j][k]+=1
+    return conf_mat
 
-#main calls
+#normalization of data
+def normalize(data):
+    dc_vec=np.zeros(len(data[:,0]))
+    mean_vec=np.zeros(len(data[:,0]))
+    var_vec=np.zeros(len(data[:,0]))
+    for i in range(len(dc_vec)):
+        dc_vec[i]=data[i,0]
+        mean_vec[i]=np.mean(data[i,:])
+        var_vec[i]=np.std(data[i,:])
+        data[i,0]=0
+        data[i,:]=(data[i,:]-mean_vec[i])/var_vec[i]
+    data_standards={'dc':dc_vec,'mean':mean_vec,'std':var_vec}
+    return data,data_standards
+
+def denormalize(data,data_standards):
+    for i in range(len(data_standards['dc'])):
+        data[i,:]=data[i,:]*data_standards['std'][i]+data_standards['mean'][i]
+        data[i,0]=data_standards['dc'][i]
+    return data
+
+###main calls####
+#Read data
 data=readData('small_set.mat')
-tr_set,test_set,tr_label,test_label=train_test_sets(data)
-tr_data_stats=feature_extract(tr_set,data['f'][0])
-tr_healthy_val=healthy_level(tr_label,tr_data_stats)
-print(tr_healthy_val['inner'],tr_healthy_val['outer'],tr_healthy_val['ball'],tr_healthy_val['rms'],tr_healthy_val['skew'],tr_healthy_val['kurtosis'],tr_healthy_val['max'])
+#Create training and test data
+tr_set,test_set,tr_labels,test_labels=train_test_sets(data)
+tr_set=np.asarray(tr_set)
+test_set=np.asarray(test_set)
+#normalize data
+tr_set_st,tr_data_stands=normalize(tr_set)
+test_set_st,test_data_stands=normalize(test_set)
+#Create autoencoder model
+model=autoencoderKeras.create_model(2,len(tr_set_st[0,:]),512,64)
+#pretraining
+model=autoencoderKeras.pretrain(model,tr_set_st,0.5)
+#training
+model=autoencoderKeras.overall_train(model,tr_set_st,0.5)
+#test on training
+test = model.predict(test_set_st)
+test=denormalize(test,test_data_stands)
+plt.figure(1)
+test_error_figure,=plt.plot(test_set[0,:],label='Training')
+plt.legend(handles=[test_error_figure])
+plt.figure(2)
+test_error_figure,=plt.plot(test[0,:],label='test')
+plt.legend(handles=[test_error_figure])
+
+plt.figure(3)
+test_error_figure,=plt.plot(test_set[100,:],label='Training')
+plt.legend(handles=[test_error_figure])
+plt.figure(4)
+test_error_figure,=plt.plot(test[100,:],label='test')
+plt.legend(handles=[test_error_figure])
+plt.show()
+
+print(test_labels[100],test_labels[0])
+
+#tr_data_stats=feature_extract(tr_set,data['f'][0])

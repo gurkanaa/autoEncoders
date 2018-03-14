@@ -96,15 +96,15 @@ def create_model(num_of_layers,input_size,*args):
         #encoder
         for i in range(num_of_layers):
             if i==0:
-                model.add(Dense(model_param[i],activation='relu',input_dim=input_size))
+                model.add(Dense(model_param[i],activation='sigmoid',input_dim=input_size))
             else:
-                model.add(Dense(model_param[i],activation='relu'))
+                model.add(Dense(model_param[i],activation='sigmoid'))
         #decoder
         for i in range(0,num_of_layers):
             if i==num_of_layers-1:
-                model.add(Dense(input_size,activation='sigmoid'))
+                model.add(Dense(input_size,activation='linear'))
             else:
-                model.add(Dense(model_param[num_of_layers-i-2],activation='relu'))
+                model.add(Dense(model_param[num_of_layers-i-2],activation='sigmoid'))
     return model
 #Pretraining of stacked autoencoder
 def pretrain(model,data,learning_rate):
@@ -114,17 +114,17 @@ def pretrain(model,data,learning_rate):
     for i in range(int(len(weights)/4)):
         if i==0:
             inputs=Input(shape=(np.size(weights[2*i],axis=0),))
-            layer_1=Dense(np.size(weights[2*i],axis=1),activation='relu')(inputs)
-            predictions=Dense(np.size(weights[2*i],axis=0),activation='sigmoid')(layer_1)
+            layer_1=Dense(np.size(weights[2*i],axis=1),activation='sigmoid')(inputs)
+            predictions=Dense(np.size(weights[2*i],axis=0),activation='linear')(layer_1)
         else:
             inputs=Input(shape=(np.size(weights[2*i],axis=0),))
-            layer_1=Dense(np.size(weights[2*i],axis=1),activation='relu')(inputs)
-            predictions=Dense(np.size(weights[2*i],axis=0),activation='relu')(layer_1)
+            layer_1=Dense(np.size(weights[2*i],axis=1),activation='sigmoid')(inputs)
+            predictions=Dense(np.size(weights[2*i],axis=0),activation='sigmoid')(layer_1)
         stacked_ae=Model(inputs=inputs,outputs=predictions)
         stacked_ae.compile(optimizer=optimizers.SGD(lr=learning_rate, momentum=0.9),
                       loss='mean_squared_error')
         print(i)
-        stacked_ae.fit(layer_input,layer_input,shuffle=True,epochs=15,batch_size=64)
+        stacked_ae.fit(layer_input,layer_input,shuffle=True,epochs=150,batch_size=32)
         get_h_layer_output = K.function([stacked_ae.layers[0].input],
                                           [stacked_ae.layers[1].output])
         layer_1_predictions = get_h_layer_output([layer_input, 0])[0]
@@ -143,5 +143,5 @@ def overall_train(model,data,learning_rate):
     sgd = optimizers.SGD(lr=learning_rate, momentum=0.9)
     model.compile(loss='mean_squared_error',
           optimizer=sgd)
-    model.fit(data,data,shuffle=True,epochs=15,batch_size=64)
+    model.fit(data,data,shuffle=True,epochs=150,batch_size=32)
     return model
