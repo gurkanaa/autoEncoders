@@ -19,7 +19,15 @@ import numpy as np #for mathematical calculations
 import random
 import scipy.stats as st
 import autoencoderKeras
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from  sklearn.svm import LinearSVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn import preprocessing
 import matplotlib.pyplot as plt
+from keras.models import Model#type of the ANN model
+from keras.layers import Dense,Input#fully connected layer
+from keras.models import Sequential
 #reading data
 #There are 5 fields: 'env':Envelope spectrum
 #                    'label_ar'   : Fault types
@@ -31,11 +39,9 @@ def readData(filename):
     data=[]
     mat_obj=loadmat(filename)
     return mat_obj
-
 #classification and test sets
-def train_test_sets(data):
+def train_test_sets(data,test_id):
     settings=[1730,1750,1772,1797]
-    test_id=np.random.choice((settings))
     training_id=list(set(settings)-set([test_id]))
     training_set=[]
     training_labels=[]
@@ -72,9 +78,6 @@ def feature_extract(data,f):
 #compute the level of rule based values for healthy motor
 def healthy_level(tr_label,data_stats):
     rms_s=.0
-    max_s=.0
-    skew_s=.0
-    kurt_s=.0
     inner_s=.0
     outer_s=.0
     ball_s=.0
@@ -109,23 +112,26 @@ def confusion_matrix(true_labels,predicted_labels):
             for k in range(4):
                 if true_labels[i]==j+1 and predicted_labels[i]==k+1:
                     conf_mat[j][k]+=1
+    for j in range(4):
+        conf_mat[j][:]/=sum(conf_mat[j][:])
     return conf_mat
 
 #normalization of data
-def normalize(data):
+def normalize(data_in):
+    data=np.copy(data_in)
     dc_vec=np.zeros(len(data[:,0]))
-    mean_vec=np.zeros(len(data[:,0]))
-    var_vec=np.zeros(len(data[:,0]))
+    dc_vec=data[:,0]
+    data[:,0]=0
+    mean_vec=np.mean(data,axis=1)
+    var_vec=np.std(data,axis=1)
+    print(len(var_vec))
     for i in range(len(dc_vec)):
-        dc_vec[i]=data[i,0]
-        mean_vec[i]=np.mean(data[i,:])
-        var_vec[i]=np.std(data[i,:])
-        data[i,0]=0
         data[i,:]=(data[i,:]-mean_vec[i])/var_vec[i]
     data_standards={'dc':dc_vec,'mean':mean_vec,'std':var_vec}
     return data,data_standards
 
-def denormalize(data,data_standards):
+def denormalize(data_in,data_standards):
+    data=np.copy(data_in)
     for i in range(len(data_standards['dc'])):
         data[i,:]=data[i,:]*data_standards['std'][i]+data_standards['mean'][i]
         data[i,0]=data_standards['dc'][i]
@@ -135,36 +141,95 @@ def denormalize(data,data_standards):
 #Read data
 data=readData('small_set.mat')
 #Create training and test data
-tr_set,test_set,tr_labels,test_labels=train_test_sets(data)
+tr_set,test_set,tr_labels,test_labels=train_test_sets(data,1797)
 tr_set=np.asarray(tr_set)
 test_set=np.asarray(test_set)
 #normalize data
 tr_set_st,tr_data_stands=normalize(tr_set)
 test_set_st,test_data_stands=normalize(test_set)
 #Create autoencoder model
-model=autoencoderKeras.create_model(2,len(tr_set_st[0,:]),512,64)
+model=autoencoderKeras.create_model(3,len(tr_set_st[0,:]),4096,512,64)
 #pretraining
 model=autoencoderKeras.pretrain(model,tr_set_st,0.5)
 #training
 model=autoencoderKeras.overall_train(model,tr_set_st,0.5)
-#test on training
+#test of ae on training set
+tr = model.predict(tr_set_st)
+tr_pred=denormalize(tr,tr_data_stands)
+#test of ae on test set
 test = model.predict(test_set_st)
-test=denormalize(test,test_data_stands)
-plt.figure(1)
-test_error_figure,=plt.plot(test_set[0,:],label='Training')
-plt.legend(handles=[test_error_figure])
-plt.figure(2)
-test_error_figure,=plt.plot(test[0,:],label='test')
-plt.legend(handles=[test_error_figure])
+test_pred=denormalize(test,test_data_stands)
+#coding model
+code_model=Sequential()
+code_model.add(Dense(4096,activation='sigmoid',input_dim=len(tr_set_st[0,:])))
+code_model.add(Dense(512,activation='sigmoid'))
+code_model.add(Dense(64,activation='sigmoid'))
+#copy trained weighs
+weights=model.get_weights()
+code_model.set_weights(weights[0:6])
+#codes
+test_code=code_model.predict(test_set_st)
+tr_code=code_model.predict(tr_set_st)
+#linear svm on raw training
+clf =  SVC(class_weight='balanced')
+clf.fit(tr_code, tr_labels)
+predicted_labels=clf.predict(tr_code)
+conf_mat=confusion_matrix(tr_labels,predicted_labels)
+print(conf_mat)
 
-plt.figure(3)
-test_error_figure,=plt.plot(test_set[100,:],label='Training')
-plt.legend(handles=[test_error_figure])
-plt.figure(4)
-test_error_figure,=plt.plot(test[100,:],label='test')
-plt.legend(handles=[test_error_figure])
-plt.show()
+predicted_labels=clf.predict(test_code)
+conf_mat=confusion_matrix(test_labels,predicted_labels)
+print(conf_mat)
 
-print(test_labels[100],test_labels[0])
 
-#tr_data_stats=feature_extract(tr_set,data['f'][0])
+#rule based diagnosis on raw training
+tr_data_stats=feature_extract(tr_set,data['f'][0])
+healthy_val=healthy_level(tr_labels,tr_data_stats)
+tr_pred_label=rule_based_classification(tr_data_stats,healthy_val)
+conf_mat_tr=confusion_matrix(tr_labels,tr_pred_label)
+print(conf_mat_tr)
+
+#linear svm on raw training
+clf =  SVC(class_weight='balanced')
+clf.fit(tr_set_st, tr_labels)
+predicted_labels=clf.predict(tr_set_st)
+conf_mat=confusion_matrix(tr_labels,predicted_labels)
+print(conf_mat)
+
+#rule based diagnosis on raw test
+test_data_stats=feature_extract(test_set,data['f'][0])
+healthy_val=healthy_level(test_labels,test_data_stats)
+test_pred_label=rule_based_classification(test_data_stats,healthy_val)
+conf_mat_test=confusion_matrix(test_labels,test_pred_label)
+print(conf_mat_test)
+
+#linear svm on raw test
+predicted_labels=clf.predict(test_set_st)
+conf_mat=confusion_matrix(test_labels,predicted_labels)
+print(conf_mat)
+
+###rule based diagnosis on pred training
+tr_data_stats=feature_extract(tr_pred,data['f'][0])
+healthy_val=healthy_level(tr_labels,tr_data_stats)
+tr_pred_label=rule_based_classification(tr_data_stats,healthy_val)
+conf_mat_tr=confusion_matrix(tr_labels,tr_pred_label)
+print(conf_mat_tr)
+
+#linear svm on pred training
+clf =  SVC(class_weight='balanced')
+clf.fit(tr, tr_labels)
+predicted_labels=clf.predict(tr)
+conf_mat=confusion_matrix(tr_labels,predicted_labels)
+print(conf_mat)
+
+###rule based diagnosis on pred test
+test_data_stats=feature_extract(test_pred,data['f'][0])
+healthy_val=healthy_level(test_labels,test_data_stats)
+test_pred_label=rule_based_classification(test_data_stats,healthy_val)
+conf_mat_tr=confusion_matrix(test_labels,test_pred_label)
+print(conf_mat_tr)
+
+#linear svm on pred test
+predicted_labels=clf.predict(test)
+conf_mat=confusion_matrix(test_labels,predicted_labels)
+print(conf_mat)

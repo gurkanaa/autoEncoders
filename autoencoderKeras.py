@@ -124,7 +124,7 @@ def pretrain(model,data,learning_rate):
         stacked_ae.compile(optimizer=optimizers.SGD(lr=learning_rate, momentum=0.9),
                       loss='mean_squared_error')
         print(i)
-        stacked_ae.fit(layer_input,layer_input,shuffle=True,epochs=150,batch_size=32)
+        stacked_ae.fit(layer_input,layer_input,shuffle=True,epochs=40,batch_size=32)
         get_h_layer_output = K.function([stacked_ae.layers[0].input],
                                           [stacked_ae.layers[1].output])
         layer_1_predictions = get_h_layer_output([layer_input, 0])[0]
@@ -143,5 +143,5 @@ def overall_train(model,data,learning_rate):
     sgd = optimizers.SGD(lr=learning_rate, momentum=0.9)
     model.compile(loss='mean_squared_error',
           optimizer=sgd)
-    model.fit(data,data,shuffle=True,epochs=150,batch_size=32)
+    model.fit(data,data,shuffle=True,epochs=40,batch_size=32)
     return model
